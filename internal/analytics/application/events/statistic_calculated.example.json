@@ -1,0 +1,29 @@
+{
+  "event_id": "evt_01J3V5Q8W7M2S1H4D9J7K5L3A1",
+  "event_type": "analytics.statistic.calculated",
+  "event_version": 1,
+  "occurred_at": "2026-01-22T01:00:10Z",
+  "produced_at": "2026-01-22T01:00:11Z",
+  "tenant_id": "tenant_01",
+  "aggregate_id": "site:SH-001",
+  "correlation_id": "corr_01J3V5Q0Y3R2Z3FJ2K7X9QH2B8",
+  "causation_id": "evt_01J3V5Q0Y3R2Z3FJ2K7X9QH2B8",
+  "is_replay": false,
+  "replay_id": "",
+  "payload": {
+    "statistic_id": "stat_01J3V5Q8W7M2S1H4D9J7K5L3A1",
+    "window_start": "2026-01-22T00:00:00Z",
+    "window_end": "2026-01-22T01:00:00Z",
+    "granularity": "hour",
+    "metrics": {
+      "energy_kwh": { "value": 152.34, "unit": "kWh" },
+      "power_kw_avg": { "value": 42.17, "unit": "kW" }
+    },
+    "frozen_at": "2026-01-22T01:00:10Z",
+    "derivation": { "from": "telemetry" },
+    "input_facts": { "hash": "sha256:3b6e91a2" }
+  },
+  "meta": {
+    "schema": "analytics.statistic.calculated.v1"
+  }
+}

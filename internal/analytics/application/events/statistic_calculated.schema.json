@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "analytics.statistic.calculated.v1",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "produced_at",
+    "tenant_id",
+    "aggregate_id",
+    "correlation_id",
+    "causation_id",
+    "is_replay",
+    "replay_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_type": { "type": "string", "const": "analytics.statistic.calculated" },
+    "event_version": { "type": "integer", "const": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "aggregate_id": { "type": "string" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "is_replay": { "type": "boolean" },
+    "replay_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "statistic_id",
+        "window_start",
+        "window_end",
+        "granularity",
+        "metrics",
+        "frozen_at",
+        "derivation"
+      ],
+      "properties": {
+        "statistic_id": { "type": "string" },
+        "window_start": { "type": "string", "format": "date-time" },
+        "window_end": { "type": "string", "format": "date-time" },
+        "granularity": { "type": "string", "enum": ["hour", "day", "month", "year"] },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value", "unit"],
+            "properties": {
+              "value": { "type": "number" },
+              "unit": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "frozen_at": { "type": "string", "format": "date-time" },
+        "derivation": {
+          "type": "object",
+          "required": ["from"],
+          "properties": {
+            "from": { "type": "string", "enum": ["telemetry", "hour", "day", "month"] }
+          },
+          "additionalProperties": false
+        },
+        "input_facts": {
+          "type": "object",
+          "properties": {
+            "hash": { "type": "string" },
+            "ids": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "meta": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}
