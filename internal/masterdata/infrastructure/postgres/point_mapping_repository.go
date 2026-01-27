@@ -14,12 +14,12 @@ const defaultPointMappingsTable = "point_mappings"
 
 // PointMappingRepository is a Postgres implementation for point mappings.
 type PointMappingRepository struct {
-	db    *sql.DB
+	db    DBTX
 	table string
 }
 
 // NewPointMappingRepository constructs a repository.
-func NewPointMappingRepository(db *sql.DB, opts ...PointMappingOption) *PointMappingRepository {
+func NewPointMappingRepository(db DBTX, opts ...PointMappingOption) *PointMappingRepository {
 	repo := &PointMappingRepository{db: db, table: defaultPointMappingsTable}
 	for _, opt := range opts {
 		opt(repo)

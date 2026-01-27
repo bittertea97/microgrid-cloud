@@ -14,12 +14,12 @@ const defaultStationsTable = "stations"
 
 // StationRepository is a Postgres implementation for stations.
 type StationRepository struct {
-	db    *sql.DB
+	db    DBTX
 	table string
 }
 
 // NewStationRepository constructs a repository.
-func NewStationRepository(db *sql.DB, opts ...StationOption) *StationRepository {
+func NewStationRepository(db DBTX, opts ...StationOption) *StationRepository {
 	repo := &StationRepository{db: db, table: defaultStationsTable}
 	for _, opt := range opts {
 		opt(repo)
@@ -49,7 +49,7 @@ func (r *StationRepository) Get(ctx context.Context, id string) (*masterdata.Sta
 	}
 
 	query := fmt.Sprintf(`
-SELECT id, tenant_id, name, timezone, station_type, region, created_at, updated_at
+SELECT id, tenant_id, name, timezone, station_type, region, tb_asset_id, tb_tenant_id, created_at, updated_at
 FROM %s
 WHERE id = $1
 LIMIT 1`, r.table)
@@ -62,6 +62,8 @@ LIMIT 1`, r.table)
 		&station.Timezone,
 		&station.StationType,
 		&station.Region,
+		&station.TBAssetID,
+		&station.TBTenantID,
 		&station.CreatedAt,
 		&station.UpdatedAt,
 	); err != nil {
@@ -94,9 +96,11 @@ INSERT INTO %s (
 	name,
 	timezone,
 	station_type,
-	region
+	region,
+	tb_asset_id,
+	tb_tenant_id
 ) VALUES (
-	$1, $2, $3, $4, $5, $6
+	$1, $2, $3, $4, $5, $6, $7, $8
 )
 ON CONFLICT (id)
 DO UPDATE SET
@@ -105,6 +109,8 @@ DO UPDATE SET
 	timezone = EXCLUDED.timezone,
 	station_type = EXCLUDED.station_type,
 	region = EXCLUDED.region,
+	tb_asset_id = EXCLUDED.tb_asset_id,
+	tb_tenant_id = EXCLUDED.tb_tenant_id,
 	updated_at = NOW()`, r.table)
 
 	_, err := r.db.ExecContext(
@@ -116,6 +122,8 @@ DO UPDATE SET
 		station.Timezone,
 		station.StationType,
 		station.Region,
+		station.TBAssetID,
+		station.TBTenantID,
 	)
 	if err != nil {
 		return err

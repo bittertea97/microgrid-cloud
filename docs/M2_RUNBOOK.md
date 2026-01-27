@@ -26,7 +26,30 @@ export TENANT_ID="tenant-demo"
 export STATION_ID="station-demo-001"
 export PRICE_PER_KWH="1.0"
 export EXPECTED_HOURS="24"
+export AUTH_JWT_SECRET="dev-secret-change-me"
+export INGEST_HMAC_SECRET="dev-ingest-secret"
 go run .
+```
+
+Auth setup (for API calls):
+```bash
+source scripts/lib_auth.sh
+AUTH_HEADER="Authorization: Bearer $(jwt_token_hs256 "$AUTH_JWT_SECRET" tenant-demo admin runbook-user 3600)"
+```
+
+Signed ingest helper:
+```bash
+ingest_post() {
+  local body="$1"
+  local ts sig
+  ts=$(date +%s)
+  sig=$(ingest_signature "$INGEST_HMAC_SECRET" "$ts" "$body")
+  curl -sS -X POST http://localhost:8080/ingest/thingsboard/telemetry \
+    -H "Content-Type: application/json" \
+    -H "X-Ingest-Timestamp: $ts" \
+    -H "X-Ingest-Signature: $sig" \
+    -d "$body"
+}
 ```
 
 ## 3) Ingest telemetry (3 days) + close windows
@@ -44,23 +67,22 @@ for day in 0 1 2; do
     ts=$(date -u -d "$base_day +$day day +$hour hour +5 min" +"%s000")
     window_start=$(date -u -d "$base_day +$day day +$hour hour" +"%Y-%m-%dT%H:00:00Z")
 
-    curl -sS -X POST http://localhost:8080/ingest/thingsboard/telemetry \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"tenantId\": \"$tenant\",
-        \"stationId\": \"$station\",
-        \"deviceId\": \"$device\",
-        \"ts\": $ts,
-        \"values\": {
-          \"charge_power_kw\": 1,
-          \"discharge_power_kw\": 2,
-          \"earnings\": 0.1,
-          \"carbon_reduction\": 0.01
-        }
-      }" >/dev/null
+    ingest_post "{
+      \"tenantId\": \"$tenant\",
+      \"stationId\": \"$station\",
+      \"deviceId\": \"$device\",
+      \"ts\": $ts,
+      \"values\": {
+        \"charge_power_kw\": 1,
+        \"discharge_power_kw\": 2,
+        \"earnings\": 0.1,
+        \"carbon_reduction\": 0.01
+      }
+    }" >/dev/null
 
     curl -sS -X POST http://localhost:8080/analytics/window-close \
       -H "Content-Type: application/json" \
+      -H "$AUTH_HEADER" \
       -d "{
         \"stationId\": \"$station\",
         \"windowStart\": \"$window_start\"
@@ -93,23 +115,22 @@ You should see 3 DAY rows in `analytics_statistics` and 3 rows in `settlements_d
 backfill_ts=$(date -u -d "2026-01-21 06:05:00" +"%s000")
 backfill_window="2026-01-21T06:00:00Z"
 
-curl -sS -X POST http://localhost:8080/ingest/thingsboard/telemetry \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"tenantId\": \"tenant-demo\",
-    \"stationId\": \"station-demo-001\",
-    \"deviceId\": \"device-001\",
-    \"ts\": $backfill_ts,
-    \"values\": {
-      \"charge_power_kw\": 10,
-      \"discharge_power_kw\": 20,
-      \"earnings\": 0.1,
-      \"carbon_reduction\": 0.01
-    }
-  }" >/dev/null
+ingest_post "{
+  \"tenantId\": \"tenant-demo\",
+  \"stationId\": \"station-demo-001\",
+  \"deviceId\": \"device-001\",
+  \"ts\": $backfill_ts,
+  \"values\": {
+    \"charge_power_kw\": 10,
+    \"discharge_power_kw\": 20,
+    \"earnings\": 0.1,
+    \"carbon_reduction\": 0.01
+  }
+}" >/dev/null
 
 curl -sS -X POST http://localhost:8080/analytics/window-close \
   -H "Content-Type: application/json" \
+  -H "$AUTH_HEADER" \
   -d "{
     \"stationId\": \"station-demo-001\",
     \"windowStart\": \"$backfill_window\",

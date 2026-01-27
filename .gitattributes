@@ -1,0 +1,19 @@
+# Default: text files use LF in repo & working tree
+* text=auto eol=lf
+
+# Windows script types (optional; keep CRLF if your team prefers)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Treat common binaries as binary (no eol normalization)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz  binary
+*.tar binary
+*.7z  binary

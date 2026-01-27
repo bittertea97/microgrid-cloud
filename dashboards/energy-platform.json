@@ -1,0 +1,204 @@
+{
+  "uid": "energy-platform",
+  "title": "Energy Platform",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "App Up",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "up{job=\"microgrid-cloud\"}", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Ingest QPS",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(platform_ingest_requests_total[1m]))", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Ingest Error Rate",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "(sum(rate(platform_ingest_requests_total{result=\"error\"}[5m])) / sum(rate(platform_ingest_requests_total[5m]))) * 100", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Command Success Rate",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "(sum(rate(platform_command_results_total{status=\"acked\"}[5m])) / sum(rate(platform_command_requests_total[5m]))) * 100", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Ingest Latency P95 (s)",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(platform_ingest_latency_seconds_bucket[5m])) by (le))", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Command Timeout Rate",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "(sum(rate(platform_command_results_total{status=\"timeout\"}[10m])) / sum(rate(platform_command_requests_total[10m]))) * 100", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Consumer Lag (s)",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "platform_event_consumer_lag_seconds", "refId": "A" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Outbox Pending",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "platform_event_outbox_pending", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "DLQ Count",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "platform_event_dlq_count", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Shadowrun Jobs (1h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(increase(platform_shadowrun_jobs_total[1h])) by (status)", "refId": "A", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Shadowrun Diff Max",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "platform_shadowrun_diff_max", "refId": "A" }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Statements Ops Rate",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(platform_statement_generate_total[5m]))", "refId": "A", "legendFormat": "generate" },
+        { "expr": "sum(rate(platform_statement_freeze_total[5m]))", "refId": "B", "legendFormat": "freeze" },
+        { "expr": "sum(rate(platform_statement_export_total[5m])) by (format)", "refId": "C", "legendFormat": "export {{format}}" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Statements Latency P95 (s)",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(platform_statement_generate_latency_seconds_bucket{result=\"success\"}[5m])) by (le))", "refId": "A", "legendFormat": "generate" },
+        { "expr": "histogram_quantile(0.95, sum(rate(platform_statement_freeze_latency_seconds_bucket{result=\"success\"}[5m])) by (le))", "refId": "B", "legendFormat": "freeze" },
+        { "expr": "histogram_quantile(0.95, sum(rate(platform_statement_export_latency_seconds_bucket{result=\"success\"}[5m])) by (le))", "refId": "C", "legendFormat": "export" }
+      ]
+    }
+  ]
+}
+

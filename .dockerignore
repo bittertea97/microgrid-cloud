@@ -1,0 +1,14 @@
+.git
+.gitignore
+.github
+.vscode
+.idea
+**/*.md
+**/*_test.go
+**/testdata
+migrations
+docs
+scripts
+tools
+dashboards
+deploy

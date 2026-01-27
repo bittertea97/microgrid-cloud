@@ -8,6 +8,7 @@ import (
 	"microgrid-cloud/internal/analytics/application/eventbus"
 	"microgrid-cloud/internal/analytics/application/events"
 	"microgrid-cloud/internal/analytics/domain/statistic"
+	"microgrid-cloud/internal/observability/metrics"
 )
 
 // HourlyStatisticAppService handles hourly statistic use case.
@@ -84,12 +85,20 @@ func NewHourlyStatisticAppService(
 
 // HandleTelemetryWindowClosed orchestrates the hourly statistic calculation.
 func (s *HourlyStatisticAppServiceImpl) HandleTelemetryWindowClosed(ctx context.Context, evt events.TelemetryWindowClosed) error {
+	start := time.Now()
+	result := metrics.ResultSuccess
+	defer func() {
+		metrics.ObserveAnalyticsWindow(result, time.Since(start))
+	}()
+
 	if evt.StationID == "" || evt.WindowStart.IsZero() || evt.WindowEnd.IsZero() {
+		result = metrics.ResultError
 		return errors.New("analytics: invalid telemetry window")
 	}
 
 	existing, err := s.repo.FindByStationHour(ctx, evt.StationID, evt.WindowStart)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 	if existing != nil && !evt.Recalculate {
@@ -98,25 +107,30 @@ func (s *HourlyStatisticAppServiceImpl) HandleTelemetryWindowClosed(ctx context.
 
 	telemetry, err := s.telemetry.QueryHour(ctx, evt.StationID, evt.WindowStart, evt.WindowEnd)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 
 	fact, err := s.calculator.CalculateHour(ctx, evt.StationID, evt.WindowStart, telemetry)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 
 	statID, err := s.idFactory.HourID(evt.StationID, evt.WindowStart)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 
 	agg, err := statistic.NewStatisticAggregate(statID, statistic.GranularityHour, evt.WindowStart)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 	completedAt := s.clock.Now()
 	if err := agg.Complete(fact, completedAt); err != nil {
+		result = metrics.ResultError
 		return err
 	}
 
@@ -124,6 +138,7 @@ func (s *HourlyStatisticAppServiceImpl) HandleTelemetryWindowClosed(ctx context.
 		if errors.Is(err, ErrDuplicateStatistic) {
 			return nil
 		}
+		result = metrics.ResultError
 		return err
 	}
 
@@ -140,4 +155,3 @@ func (s *HourlyStatisticAppServiceImpl) HandleTelemetryWindowClosed(ctx context.
 		Recalculate: evt.Recalculate,
 	})
 }
-

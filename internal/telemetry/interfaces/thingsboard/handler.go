@@ -8,29 +8,41 @@ import (
 	"net/http"
 	"time"
 
+	"microgrid-cloud/internal/eventing"
+	"microgrid-cloud/internal/observability/metrics"
+	telemetryevents "microgrid-cloud/internal/telemetry/application/events"
 	"microgrid-cloud/internal/telemetry/domain"
 )
 
 // IngestHandler handles telemetry ingestion from ThingsBoard webhook.
 type IngestHandler struct {
-	repo   telemetry.TelemetryRepository
-	logger *log.Logger
+	repo      telemetry.TelemetryRepository
+	publisher *eventing.Publisher
+	logger    *log.Logger
 }
 
 // NewIngestHandler constructs an ingest handler.
-func NewIngestHandler(repo telemetry.TelemetryRepository, logger *log.Logger) (*IngestHandler, error) {
+func NewIngestHandler(repo telemetry.TelemetryRepository, publisher *eventing.Publisher, logger *log.Logger) (*IngestHandler, error) {
 	if repo == nil {
 		return nil, errors.New("thingsboard ingest: nil repository")
 	}
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &IngestHandler{repo: repo, logger: logger}, nil
+	return &IngestHandler{repo: repo, publisher: publisher, logger: logger}, nil
 }
 
 // ServeHTTP ingests telemetry data.
 func (h *IngestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	result := metrics.IngestResultSuccess
+	defer func() {
+		metrics.ObserveIngest(result, time.Since(start))
+	}()
+
 	if r.Method != http.MethodPost {
+		result = metrics.IngestResultError
+		metrics.IncIngestError("method_not_allowed")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -38,6 +50,8 @@ func (h *IngestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.logger.Printf("telemetry ingest: read body error: %v", err)
+		result = metrics.IngestResultError
+		metrics.IncIngestError("read_body")
 		http.Error(w, "read body error", http.StatusBadRequest)
 		return
 	}
@@ -46,6 +60,8 @@ func (h *IngestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req ingestRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		h.logger.Printf("telemetry ingest: decode error: %v", err)
+		result = metrics.IngestResultError
+		metrics.IncIngestError("invalid_json")
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
@@ -53,14 +69,54 @@ func (h *IngestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	measurements, err := req.toMeasurements()
 	if err != nil {
 		h.logger.Printf("telemetry ingest: invalid payload: %v", err)
+		result = metrics.IngestResultError
+		metrics.IncIngestError("invalid_payload")
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.repo.InsertMeasurements(r.Context(), measurements); err != nil {
 		h.logger.Printf("telemetry ingest: insert error: %v", err)
+		result = metrics.IngestResultError
+		metrics.IncIngestError("insert_error")
 		http.Error(w, "insert error", http.StatusInternalServerError)
 		return
+	}
+
+	if h.publisher != nil {
+		points := make([]telemetryevents.TelemetryPoint, 0, len(measurements))
+		var occurredAt time.Time
+		for _, measurement := range measurements {
+			if measurement.TS.After(occurredAt) {
+				occurredAt = measurement.TS
+			}
+			value := 0.0
+			if measurement.ValueNumeric != nil {
+				value = *measurement.ValueNumeric
+			}
+			points = append(points, telemetryevents.TelemetryPoint{
+				PointKey: measurement.PointKey,
+				Value:    value,
+				Quality:  measurement.Quality,
+				TS:       measurement.TS,
+			})
+		}
+		if occurredAt.IsZero() {
+			occurredAt = time.Now().UTC()
+		}
+		event := telemetryevents.TelemetryReceived{
+			EventID:    eventing.NewEventID(),
+			TenantID:   req.TenantID,
+			StationID:  req.StationID,
+			DeviceID:   req.DeviceID,
+			Points:     points,
+			OccurredAt: occurredAt,
+		}
+		ctx := eventing.WithEventID(r.Context(), event.EventID)
+		ctx = eventing.WithTenantID(ctx, req.TenantID)
+		if err := h.publisher.Publish(ctx, event); err != nil {
+			h.logger.Printf("telemetry ingest: publish error: %v", err)
+		}
 	}
 
 	resp := map[string]any{"inserted": len(measurements)}

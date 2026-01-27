@@ -2,6 +2,13 @@
 
 All time inputs/outputs are **RFC3339 UTC** (e.g. `2026-01-20T00:00:00Z`).
 
+Auth setup:
+```bash
+export AUTH_JWT_SECRET="dev-secret-change-me"
+source scripts/lib_auth.sh
+AUTH_HEADER="Authorization: Bearer $(jwt_token_hs256 "$AUTH_JWT_SECRET" tenant-demo viewer runbook-user 3600)"
+```
+
 ## 1) Statistics Query
 
 `GET /api/v1/stats`
@@ -34,7 +41,7 @@ All time inputs/outputs are **RFC3339 UTC** (e.g. `2026-01-20T00:00:00Z`).
 
 ### Curl
 ```bash
-curl -sS "http://localhost:8080/api/v1/stats?station_id=station-demo-001&from=2026-01-20T00:00:00Z&to=2026-01-21T00:00:00Z&granularity=hour"
+curl -sS -H "$AUTH_HEADER" "http://localhost:8080/api/v1/stats?station_id=station-demo-001&from=2026-01-20T00:00:00Z&to=2026-01-21T00:00:00Z&granularity=hour"
 ```
 
 ## 2) Settlements Query
@@ -65,7 +72,7 @@ curl -sS "http://localhost:8080/api/v1/stats?station_id=station-demo-001&from=20
 
 ### Curl
 ```bash
-curl -sS "http://localhost:8080/api/v1/settlements?station_id=station-demo-001&from=2026-01-20T00:00:00Z&to=2026-01-23T00:00:00Z"
+curl -sS -H "$AUTH_HEADER" "http://localhost:8080/api/v1/settlements?station_id=station-demo-001&from=2026-01-20T00:00:00Z&to=2026-01-23T00:00:00Z"
 ```
 
 ## 3) CSV Export (Settlements)
@@ -96,7 +103,7 @@ curl -sS "http://localhost:8080/api/v1/settlements?station_id=station-demo-001&f
 
 ### Curl
 ```bash
-curl -sS "http://localhost:8080/api/v1/exports/settlements.csv?station_id=station-demo-001&from=2026-01-20T00:00:00Z&to=2026-01-23T00:00:00Z"
+curl -sS -H "$AUTH_HEADER" "http://localhost:8080/api/v1/exports/settlements.csv?station_id=station-demo-001&from=2026-01-20T00:00:00Z&to=2026-01-23T00:00:00Z"
 ```
 
 ## Errors

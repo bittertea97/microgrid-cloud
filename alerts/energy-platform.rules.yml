@@ -1,0 +1,94 @@
+groups:
+  - name: energy-platform
+    interval: 30s
+    rules:
+      - alert: MicrogridCloudDown
+        expr: up{job="microgrid-cloud"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "microgrid-cloud is down"
+          description: "Prometheus target microgrid-cloud has been down for more than 2 minutes."
+
+      - alert: IngestErrorRateHigh
+        expr: sum(rate(platform_ingest_requests_total{result="error"}[5m])) / sum(rate(platform_ingest_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High ingest error rate"
+          description: "Ingest error rate exceeds 5% over 5 minutes."
+
+      - alert: ConsumerLagHigh
+        expr: max(platform_event_consumer_lag_seconds) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event consumer lag high"
+          description: "Consumer lag has exceeded 300s for more than 5 minutes."
+
+      - alert: OutboxPendingHigh
+        expr: platform_event_outbox_pending > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox backlog high"
+          description: "Pending outbox records exceed 100 for more than 5 minutes."
+
+      - alert: DLQNotEmpty
+        expr: platform_event_dlq_count > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ not empty"
+          description: "Dead letter queue has records for more than 10 minutes."
+
+      - alert: CommandTimeoutRateHigh
+        expr: sum(rate(platform_command_results_total{status="timeout"}[10m])) / sum(rate(platform_command_requests_total[10m])) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Command timeout rate high"
+          description: "Command timeouts exceed 10% over 10 minutes."
+
+      - alert: ShadowrunJobsFailed
+        expr: increase(platform_shadowrun_jobs_total{status="failed"}[6h]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Shadowrun job failed"
+          description: "At least one shadowrun job has failed in the last 6 hours."
+
+      - alert: StatementGenerateLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(platform_statement_generate_latency_seconds_bucket{result="success"}[10m])) by (le)) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Statement generate latency high"
+          description: "P95 statement generate latency exceeds 5s over 10 minutes."
+
+      - alert: StatementFreezeLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(platform_statement_freeze_latency_seconds_bucket{result="success"}[10m])) by (le)) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Statement freeze latency high"
+          description: "P95 statement freeze latency exceeds 5s over 10 minutes."
+
+      - alert: StatementExportErrors
+        expr: increase(platform_statement_export_total{result="error"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Statement export errors"
+          description: "Statement export errors detected in the last 15 minutes."
+

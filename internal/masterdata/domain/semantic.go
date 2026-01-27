@@ -8,4 +8,5 @@ const (
 	SemanticDischargePowerKW Semantic = "discharge_power_kw"
 	SemanticEarnings         Semantic = "earnings"
 	SemanticCarbonReduction  Semantic = "carbon_reduction"
+	SemanticGridExportKW     Semantic = "grid_export_kw"
 )

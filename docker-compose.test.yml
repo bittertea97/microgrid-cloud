@@ -1,0 +1,48 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: microgrid_test
+    ports: []
+    volumes:
+      - pg_test_data:/var/lib/postgresql/data
+
+  nats:
+    ports: []
+
+  minio:
+    ports: []
+
+  prometheus:
+    ports: []
+
+  grafana:
+    ports: []
+
+  thingsboard:
+    image: golang:1.22-alpine
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: ["go", "run", "./tools/fake_tb_server"]
+    environment:
+      FAKE_TB_ADDR: ":18080"
+    ports: []
+
+  migrate:
+    command: [
+      "-path", "/migrations",
+      "-database", "postgres://microgrid:microgrid@postgres:5432/microgrid_test?sslmode=disable",
+      "up"
+    ]
+
+  app:
+    environment:
+      DATABASE_URL: postgres://microgrid:microgrid@postgres:5432/microgrid_test?sslmode=disable
+      TB_BASE_URL: http://thingsboard:18080
+      AUTH_JWT_SECRET: dev-secret-change-me
+      INGEST_HMAC_SECRET: dev-ingest-secret
+      INGEST_MAX_SKEW_SECONDS: "300"
+    ports: []
+
+volumes:
+  pg_test_data:

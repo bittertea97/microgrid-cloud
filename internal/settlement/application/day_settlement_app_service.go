@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"microgrid-cloud/internal/observability/metrics"
 	"microgrid-cloud/internal/settlement/domain"
 )
 
@@ -96,15 +97,24 @@ func NewDaySettlementApplicationService(
 
 // HandleDayEnergyCalculated recalculates day settlement amounts.
 func (s *DaySettlementApplicationService) HandleDayEnergyCalculated(ctx context.Context, event DayEnergyCalculated) error {
+	start := time.Now()
+	result := metrics.ResultSuccess
+	defer func() {
+		metrics.ObserveSettlementDay(result, time.Since(start))
+	}()
+
 	if event.SubjectID == "" {
+		result = metrics.ResultError
 		return settlement.ErrEmptySubjectID
 	}
 	if event.DayStart.IsZero() {
+		result = metrics.ResultError
 		return settlement.ErrInvalidDayStart
 	}
 
 	hourly, err := s.energy.ListDayHourEnergy(ctx, event.SubjectID, event.DayStart)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 
@@ -113,6 +123,7 @@ func (s *DaySettlementApplicationService) HandleDayEnergyCalculated(ctx context.
 	for _, hour := range hourly {
 		price, err := s.pricing.PriceAt(ctx, event.SubjectID, hour.HourStart)
 		if err != nil {
+			result = metrics.ResultError
 			return err
 		}
 		energyKWh += hour.EnergyKWh
@@ -121,21 +132,25 @@ func (s *DaySettlementApplicationService) HandleDayEnergyCalculated(ctx context.
 
 	agg, err := s.repo.FindBySubjectAndDay(ctx, event.SubjectID, event.DayStart)
 	if err != nil {
+		result = metrics.ResultError
 		return err
 	}
 	if agg == nil {
 		agg, err = settlement.NewDaySettlementAggregate(event.SubjectID, event.DayStart)
 		if err != nil {
+			result = metrics.ResultError
 			return err
 		}
 	}
 	wasNew := agg.IsNew()
 
 	if err := agg.Recalculate(energyKWh, amount); err != nil {
+		result = metrics.ResultError
 		return err
 	}
 
 	if err := s.repo.Save(ctx, agg); err != nil {
+		result = metrics.ResultError
 		return err
 	}
 

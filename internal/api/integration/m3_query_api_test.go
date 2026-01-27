@@ -56,9 +56,9 @@ func TestM3_QueryAPI_JSONAndCSV(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/v1/stats", apihttp.NewStatsHandler(db))
-	mux.Handle("/api/v1/settlements", apihttp.NewSettlementsHandler(db, tenantID))
-	mux.Handle("/api/v1/exports/settlements.csv", apihttp.NewExportSettlementsCSVHandler(db, tenantID))
+	mux.Handle("/api/v1/stats", apihttp.NewStatsHandler(db, nil))
+	mux.Handle("/api/v1/settlements", apihttp.NewSettlementsHandler(db, tenantID, nil))
+	mux.Handle("/api/v1/exports/settlements.csv", apihttp.NewExportSettlementsCSVHandler(db, tenantID, nil))
 
 	server := httptest.NewServer(mux)
 	defer server.Close()

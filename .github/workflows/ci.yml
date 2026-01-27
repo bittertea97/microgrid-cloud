@@ -1,0 +1,162 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: microgrid-cloud
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Go test
+        env:
+          GOTOOLCHAIN: auto
+        run: go test ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: microgrid
+          POSTGRES_PASSWORD: microgrid
+          POSTGRES_DB: microgrid
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U microgrid -d microgrid"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      PG_DSN: postgres://microgrid:microgrid@localhost:5432/microgrid?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install postgres client
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply migrations
+        env:
+          PGPASSWORD: microgrid
+        run: |
+          set -euo pipefail
+          for f in $(ls migrations/*.sql | sort); do
+            psql "$PG_DSN" -f "$f"
+          done
+      - name: Go test (integration)
+        env:
+          GOTOOLCHAIN: auto
+        run: go test ./...
+
+  migrations-smoke:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Migrations smoke
+        run: |
+          set -euo pipefail
+          bash scripts/migrations_smoke.sh
+
+  release-check:
+    runs-on: ubuntu-latest
+    needs: [test, migrations-smoke]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client jq
+      - name: Release acceptance
+        env:
+          AUTH_JWT_SECRET: dev-secret-change-me
+          INGEST_HMAC_SECRET: dev-ingest-secret
+        run: |
+          set -euo pipefail
+          bash scripts/release_acceptance.sh
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, integration, migrations-smoke, release-check]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in (custom registry)
+        id: login_custom
+        if: ${{ secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Log in (ghcr)
+        id: login_ghcr
+        if: ${{ secrets.REGISTRY_USERNAME == '' && secrets.REGISTRY_PASSWORD == '' && startsWith(env.REGISTRY, 'ghcr.io') }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=semver,pattern={{version}}
+
+      - name: Build (and push if logged in)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: ${{ (steps.login_custom.outcome == 'success' || steps.login_ghcr.outcome == 'success') && github.event_name != 'pull_request' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prepare release artifact
+        run: |
+          set -euo pipefail
+          rm -rf release
+          mkdir -p release/migrations release/dashboards release/runbooks
+          cp -r migrations/* release/migrations/
+          if [ -d dashboards ]; then cp -r dashboards/* release/dashboards/; fi
+          cp docs/*RUNBOOK*.md release/runbooks/
+          tar -czf release-artifact.tgz -C release .
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: microgrid-release
+          path: release-artifact.tgz

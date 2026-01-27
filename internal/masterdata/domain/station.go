@@ -14,6 +14,8 @@ type Station struct {
 	Timezone    string
 	StationType string
 	Region      string
+	TBAssetID   string
+	TBTenantID  string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

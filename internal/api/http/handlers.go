@@ -9,18 +9,21 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"microgrid-cloud/internal/auth"
 )
 
 const timeLayout = time.RFC3339
 
 // StatsHandler serves analytics statistics queries.
 type StatsHandler struct {
-	db *sql.DB
+	db             *sql.DB
+	stationChecker auth.StationTenantChecker
 }
 
 // NewStatsHandler constructs a StatsHandler.
-func NewStatsHandler(db *sql.DB) *StatsHandler {
-	return &StatsHandler{db: db}
+func NewStatsHandler(db *sql.DB, stationChecker auth.StationTenantChecker) *StatsHandler {
+	return &StatsHandler{db: db, stationChecker: stationChecker}
 }
 
 // ServeHTTP handles GET /api/v1/stats.
@@ -38,6 +41,14 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if stationID == "" {
 		http.Error(w, "station_id is required", http.StatusBadRequest)
 		return
+	}
+
+	tenantID := auth.TenantIDFromContext(r.Context())
+	if tenantID != "" {
+		if err := ensureStationTenant(r, h.stationChecker, tenantID, stationID); err != nil {
+			respondTenantError(w, err)
+			return
+		}
 	}
 
 	from, err := parseTimeQuery(r, "from")
@@ -62,7 +73,7 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := queryStats(r.Context(), h.db, stationID, timeType, from, to)
+	stats, err := queryStats(r.Context(), h.db, tenantID, stationID, timeType, from, to)
 	if err != nil {
 		http.Error(w, "query stats error", http.StatusInternalServerError)
 		return
@@ -74,13 +85,14 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // SettlementsHandler serves day settlement queries.
 type SettlementsHandler struct {
-	db       *sql.DB
-	tenantID string
+	db             *sql.DB
+	tenantID       string
+	stationChecker auth.StationTenantChecker
 }
 
 // NewSettlementsHandler constructs a SettlementsHandler.
-func NewSettlementsHandler(db *sql.DB, tenantID string) *SettlementsHandler {
-	return &SettlementsHandler{db: db, tenantID: tenantID}
+func NewSettlementsHandler(db *sql.DB, tenantID string, stationChecker auth.StationTenantChecker) *SettlementsHandler {
+	return &SettlementsHandler{db: db, tenantID: tenantID, stationChecker: stationChecker}
 }
 
 // ServeHTTP handles GET /api/v1/settlements.
@@ -93,7 +105,11 @@ func (h *SettlementsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server not ready", http.StatusServiceUnavailable)
 		return
 	}
-	if h.tenantID == "" {
+	tenantID := auth.TenantIDFromContext(r.Context())
+	if tenantID == "" {
+		tenantID = h.tenantID
+	}
+	if tenantID == "" {
 		http.Error(w, "tenant_id is required", http.StatusServiceUnavailable)
 		return
 	}
@@ -102,6 +118,13 @@ func (h *SettlementsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if stationID == "" {
 		http.Error(w, "station_id is required", http.StatusBadRequest)
 		return
+	}
+
+	if tenantID != "" {
+		if err := ensureStationTenant(r, h.stationChecker, tenantID, stationID); err != nil {
+			respondTenantError(w, err)
+			return
+		}
 	}
 
 	from, err := parseTimeQuery(r, "from")
@@ -119,7 +142,7 @@ func (h *SettlementsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := querySettlements(r.Context(), h.db, h.tenantID, stationID, from, to)
+	rows, err := querySettlements(r.Context(), h.db, tenantID, stationID, from, to)
 	if err != nil {
 		http.Error(w, "query settlements error", http.StatusInternalServerError)
 		return
@@ -131,13 +154,14 @@ func (h *SettlementsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ExportSettlementsCSVHandler serves settlement CSV exports.
 type ExportSettlementsCSVHandler struct {
-	db       *sql.DB
-	tenantID string
+	db             *sql.DB
+	tenantID       string
+	stationChecker auth.StationTenantChecker
 }
 
 // NewExportSettlementsCSVHandler constructs a ExportSettlementsCSVHandler.
-func NewExportSettlementsCSVHandler(db *sql.DB, tenantID string) *ExportSettlementsCSVHandler {
-	return &ExportSettlementsCSVHandler{db: db, tenantID: tenantID}
+func NewExportSettlementsCSVHandler(db *sql.DB, tenantID string, stationChecker auth.StationTenantChecker) *ExportSettlementsCSVHandler {
+	return &ExportSettlementsCSVHandler{db: db, tenantID: tenantID, stationChecker: stationChecker}
 }
 
 // ServeHTTP handles GET /api/v1/exports/settlements.csv.
@@ -150,7 +174,11 @@ func (h *ExportSettlementsCSVHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		http.Error(w, "server not ready", http.StatusServiceUnavailable)
 		return
 	}
-	if h.tenantID == "" {
+	tenantID := auth.TenantIDFromContext(r.Context())
+	if tenantID == "" {
+		tenantID = h.tenantID
+	}
+	if tenantID == "" {
 		http.Error(w, "tenant_id is required", http.StatusServiceUnavailable)
 		return
 	}
@@ -159,6 +187,13 @@ func (h *ExportSettlementsCSVHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 	if stationID == "" {
 		http.Error(w, "station_id is required", http.StatusBadRequest)
 		return
+	}
+
+	if tenantID != "" {
+		if err := ensureStationTenant(r, h.stationChecker, tenantID, stationID); err != nil {
+			respondTenantError(w, err)
+			return
+		}
 	}
 
 	from, err := parseTimeQuery(r, "from")
@@ -176,7 +211,7 @@ func (h *ExportSettlementsCSVHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	rows, err := querySettlements(r.Context(), h.db, h.tenantID, stationID, from, to)
+	rows, err := querySettlements(r.Context(), h.db, tenantID, stationID, from, to)
 	if err != nil {
 		http.Error(w, "query settlements error", http.StatusInternalServerError)
 		return
@@ -242,8 +277,8 @@ type settlementRow struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func queryStats(ctx context.Context, db *sql.DB, stationID, timeType string, from, to time.Time) ([]statRow, error) {
-	rows, err := db.QueryContext(ctx, `
+func queryStats(ctx context.Context, db *sql.DB, tenantID, stationID, timeType string, from, to time.Time) ([]statRow, error) {
+	query := `
 SELECT
 	subject_id,
 	time_type,
@@ -262,8 +297,35 @@ FROM analytics_statistics
 WHERE subject_id = $1
 	AND time_type = $2
 	AND period_start >= $3
-	AND period_start < $4
-ORDER BY period_start ASC`, stationID, timeType, from.UTC(), to.UTC())
+	AND period_start < $4`
+	args := []any{stationID, timeType, from.UTC(), to.UTC()}
+	if tenantID != "" {
+		query = `
+SELECT
+	s.subject_id,
+	s.time_type,
+	s.time_key,
+	s.period_start,
+	s.statistic_id,
+	s.is_completed,
+	s.completed_at,
+	s.charge_kwh,
+	s.discharge_kwh,
+	s.earnings,
+	s.carbon_reduction,
+	s.created_at,
+	s.updated_at
+FROM analytics_statistics s
+JOIN stations st ON st.id = s.subject_id
+WHERE st.tenant_id = $1
+	AND s.subject_id = $2
+	AND s.time_type = $3
+	AND s.period_start >= $4
+	AND s.period_start < $5`
+		args = []any{tenantID, stationID, timeType, from.UTC(), to.UTC()}
+	}
+	query += "\nORDER BY period_start ASC"
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -355,6 +417,28 @@ ORDER BY day_start ASC`, tenantID, stationID, from.UTC(), to.UTC())
 		return nil, err
 	}
 	return result, nil
+}
+
+func ensureStationTenant(r *http.Request, checker auth.StationTenantChecker, tenantID, stationID string) error {
+	if checker == nil || tenantID == "" || stationID == "" {
+		return nil
+	}
+	return checker.EnsureStationTenant(r.Context(), tenantID, stationID)
+}
+
+func respondTenantError(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, auth.ErrTenantMismatch) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if errors.Is(err, auth.ErrNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	http.Error(w, "tenant check failed", http.StatusInternalServerError)
 }
 
 func parseTimeQuery(r *http.Request, key string) (time.Time, error) {
