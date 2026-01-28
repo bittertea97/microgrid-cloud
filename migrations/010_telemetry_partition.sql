@@ -61,7 +61,7 @@ CREATE TABLE telemetry_points (
 		end_date := max_ts::date + future_days;
 	END IF;
 
-	FOR d IN SELECT generate_series(start_date, end_date, interval ''1 day'')::date LOOP
+	FOR d IN SELECT generate_series(start_date, end_date, interval '1 day')::date LOOP
 		EXECUTE format(
 			'CREATE TABLE IF NOT EXISTS telemetry_points_%s PARTITION OF telemetry_points FOR VALUES FROM (%L) TO (%L)',
 			to_char(d, 'YYYYMMDD'),

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -61,6 +60,14 @@ func (c *Client) EnsureTenant(ctx context.Context, tenantName string) (Tenant, e
 	if tenantName == "" {
 		return Tenant{}, errors.New("tbadapter: empty tenant name")
 	}
+	// If authenticated as tenant admin, reuse the current tenant from /api/auth/user.
+	if c.token != "" {
+		if user, err := c.currentUser(ctx); err == nil {
+			if strings.ToUpper(user.Authority) != "SYS_ADMIN" && user.TenantID.ID != "" {
+				return Tenant{ID: user.TenantID.ID, Name: tenantName}, nil
+			}
+		}
+	}
 	existing, ok, err := c.findTenant(ctx, tenantName)
 	if err != nil {
 		return Tenant{}, err
@@ -74,6 +81,19 @@ func (c *Client) EnsureTenant(ctx context.Context, tenantName string) (Tenant, e
 		return Tenant{}, err
 	}
 	return Tenant{ID: resp.ID.ID, Name: resp.Title}, nil
+}
+
+type authUser struct {
+	Authority string  `json:"authority"`
+	TenantID  entityID `json:"tenantId"`
+}
+
+func (c *Client) currentUser(ctx context.Context) (authUser, error) {
+	var resp authUser
+	if err := c.doJSON(ctx, http.MethodGet, "/api/auth/user", nil, &resp); err != nil {
+		return authUser{}, err
+	}
+	return resp, nil
 }
 
 // EnsureAsset finds or creates an asset by external station id.
@@ -93,9 +113,12 @@ func (c *Client) EnsureAsset(ctx context.Context, tenantID, stationID, name, ass
 	}
 
 	body := map[string]any{
-		"name":     name,
-		"type":     assetType,
-		"tenantId": tenantID,
+		"name": name,
+		"type": assetType,
+		"tenantId": map[string]any{
+			"entityType": "TENANT",
+			"id":         tenantID,
+		},
 	}
 	var resp assetDeviceResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/asset", body, &resp); err != nil {
@@ -121,13 +144,14 @@ func (c *Client) EnsureDevice(ctx context.Context, tenantID, deviceID, name, dev
 	}
 
 	body := map[string]any{
-		"name":     name,
-		"type":     deviceType,
-		"tenantId": tenantID,
+		"name": name,
+		"type": deviceType,
+		"tenantId": map[string]any{
+			"entityType": "TENANT",
+			"id":         tenantID,
+		},
 	}
-	if profile != "" {
-		body["profile"] = profile
-	}
+	// NOTE: TB 4.x expects deviceProfileId; skip profile string to keep compatibility.
 
 	var resp assetDeviceResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/device", body, &resp); err != nil {
@@ -176,31 +200,63 @@ func (c *Client) SendRPC(ctx context.Context, deviceID, commandType string, payl
 }
 
 func (c *Client) findTenant(ctx context.Context, tenantName string) (Tenant, bool, error) {
-	values := url.Values{}
-	values.Set("tenantTitle", tenantName)
-	var resp tenantResponse
-	err := c.doJSON(ctx, http.MethodGet, "/api/tenant?"+values.Encode(), nil, &resp)
-	if err != nil {
-		if errors.Is(err, errNotFound) {
-			return Tenant{}, false, nil
-		}
-		return Tenant{}, false, err
-	}
-	if resp.ID.ID == "" {
+	if tenantName == "" {
 		return Tenant{}, false, nil
 	}
-	return Tenant{ID: resp.ID.ID, Name: resp.Title}, true, nil
+	// Some TB deployments (e.g. 4.0) do not support GET /api/tenant?tenantTitle=...
+	// Fall back to listing tenants and matching by title.
+	for page := 0; page < 50; page++ {
+		path := fmt.Sprintf("/api/tenants?page=%d&pageSize=100", page)
+		var resp tenantsPage
+		if err := c.doJSON(ctx, http.MethodGet, path, nil, &resp); err != nil {
+			if errors.Is(err, errNotFound) {
+				return Tenant{}, false, nil
+			}
+			return Tenant{}, false, err
+		}
+		for _, item := range resp.Data {
+			if item.Title == tenantName {
+				return Tenant{ID: item.ID.ID, Name: item.Title}, true, nil
+			}
+		}
+		if !resp.HasNext {
+			break
+		}
+	}
+	return Tenant{}, false, nil
 }
 
 func (c *Client) findEntityByAttribute(ctx context.Context, entityType, tenantID, key, value string) (string, bool, error) {
 	if entityType == "" || key == "" || value == "" {
 		return "", false, errors.New("tbadapter: invalid attribute query")
 	}
+	// TB 4.x expects entity queries with entityFilter/keyFilters.
 	body := map[string]any{
-		"entityType": entityType,
-		"tenantId":   tenantID,
-		"key":        key,
-		"value":      value,
+		"entityFilter": map[string]any{
+			"type":            "entityType",
+			"resolveMultiple": true,
+			"entityType":      entityType,
+		},
+		"keyFilters": []any{
+			map[string]any{
+				"key": map[string]any{
+					"type": "ATTRIBUTE",
+					"key":  key,
+				},
+				"valueType": "STRING",
+				"predicate": map[string]any{
+					"type":      "STRING",
+					"operation": "EQUAL",
+					"value": map[string]any{
+						"defaultValue": value,
+					},
+				},
+			},
+		},
+		"pageLink": map[string]any{
+			"pageSize": 1,
+			"page":     0,
+		},
 	}
 	var resp entityQueryResponse
 	err := c.doJSON(ctx, http.MethodPost, "/api/entitiesQuery/find", body, &resp)
@@ -219,6 +275,11 @@ func (c *Client) findEntityByAttribute(ctx context.Context, entityType, tenantID
 type tenantResponse struct {
 	ID    entityID `json:"id"`
 	Title string   `json:"title"`
+}
+
+type tenantsPage struct {
+	Data    []tenantResponse `json:"data"`
+	HasNext bool             `json:"hasNext"`
 }
 
 type assetDeviceResponse struct {

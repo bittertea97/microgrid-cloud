@@ -12,7 +12,7 @@ BEGIN
   END IF;
 
   IF EXISTS (
-    SELECT 1 FROM pg_class WHERE relname = ''idx_system_alerts_station''
+    SELECT 1 FROM pg_class WHERE relname = 'idx_system_alerts_station'
   ) THEN
     EXECUTE 'ALTER INDEX idx_system_alerts_station RENAME TO idx_shadowrun_alerts_station';
   END IF;

@@ -89,7 +89,7 @@ BEGIN
 		EXECUTE 'CREATE INDEX IF NOT EXISTS idx_telemetry_points_station_device_point_ts ON telemetry_points (tenant_id, station_id, device_id, point_key, ts DESC)';
 
 		IF mode = 'day' THEN
-			FOR d IN SELECT generate_series(current_date, current_date + future_days, interval ''1 day'')::date LOOP
+			FOR d IN SELECT generate_series(current_date, current_date + future_days, interval '1 day')::date LOOP
 				EXECUTE format(
 					'CREATE TABLE IF NOT EXISTS telemetry_points_%s PARTITION OF telemetry_points FOR VALUES FROM (%L) TO (%L)',
 					to_char(d, 'YYYYMMDD'),
@@ -98,12 +98,12 @@ BEGIN
 				);
 			END LOOP;
 		ELSE
-			FOR d IN SELECT generate_series(date_trunc('month', current_date)::date, (date_trunc('month', current_date) + make_interval(months => future_months))::date, interval ''1 month'')::date LOOP
+			FOR d IN SELECT generate_series(date_trunc('month', current_date)::date, (date_trunc('month', current_date) + make_interval(months => future_months))::date, interval '1 month')::date LOOP
 				EXECUTE format(
 					'CREATE TABLE IF NOT EXISTS telemetry_points_%s PARTITION OF telemetry_points FOR VALUES FROM (%L) TO (%L)',
 					to_char(d, 'YYYYMM'),
 					d::timestamptz,
-					(d + interval ''1 month'')::timestamptz
+					(d + interval '1 month')::timestamptz
 				);
 			END LOOP;
 		END IF;
@@ -112,27 +112,27 @@ BEGIN
 
 	EXECUTE 'ALTER TABLE telemetry_points RENAME TO telemetry_points_legacy';
 
-	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''telemetry_points_default'') THEN
+	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'telemetry_points_default') THEN
 		EXECUTE 'ALTER TABLE telemetry_points_default RENAME TO telemetry_points_legacy_default';
 	END IF;
 
-	IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = ''telemetry_points_pkey'') THEN
+	IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'telemetry_points_pkey') THEN
 		EXECUTE 'ALTER TABLE telemetry_points_legacy RENAME CONSTRAINT telemetry_points_pkey TO telemetry_points_legacy_pkey';
 	END IF;
 
-	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''idx_telemetry_points_station_ts'') THEN
+	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_telemetry_points_station_ts') THEN
 		EXECUTE 'ALTER INDEX idx_telemetry_points_station_ts RENAME TO idx_telemetry_points_station_ts_legacy';
 	END IF;
 
-	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''idx_telemetry_points_device_ts'') THEN
+	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_telemetry_points_device_ts') THEN
 		EXECUTE 'ALTER INDEX idx_telemetry_points_device_ts RENAME TO idx_telemetry_points_device_ts_legacy';
 	END IF;
 
-	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''idx_telemetry_points_station_point_ts'') THEN
+	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_telemetry_points_station_point_ts') THEN
 		EXECUTE 'ALTER INDEX idx_telemetry_points_station_point_ts RENAME TO idx_telemetry_points_station_point_ts_legacy';
 	END IF;
 
-	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = ''idx_telemetry_points_station_device_point_ts'') THEN
+	IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'idx_telemetry_points_station_device_point_ts') THEN
 		EXECUTE 'ALTER INDEX idx_telemetry_points_station_device_point_ts RENAME TO idx_telemetry_points_station_device_point_ts_legacy';
 	END IF;
 
@@ -162,12 +162,12 @@ CREATE TABLE telemetry_points (
 		end_month := (date_trunc('month', max_ts) + make_interval(months => future_months))::date;
 	END IF;
 
-	FOR d IN SELECT generate_series(start_month, end_month, interval ''1 month'')::date LOOP
+FOR d IN SELECT generate_series(start_month, end_month, interval '1 month')::date LOOP
 		EXECUTE format(
 			'CREATE TABLE IF NOT EXISTS telemetry_points_%s PARTITION OF telemetry_points FOR VALUES FROM (%L) TO (%L)',
 			to_char(d, 'YYYYMM'),
 			d::timestamptz,
-			(d + interval ''1 month'')::timestamptz
+			(d + interval '1 month')::timestamptz
 		);
 	END LOOP;
 
