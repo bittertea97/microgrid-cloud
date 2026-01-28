@@ -1,33 +1,26 @@
-# Runbook Index
+# 文档索引
 
-This folder contains operational runbooks for microgrid-cloud. All API calls require JWT auth; ingest endpoints require HMAC signatures.
+欢迎查阅微电网云平台文档！
 
-## Common prerequisites
-- Tools: `bash`, `curl`, `jq` or `python`, `psql`, `openssl`, GNU `date` (or `gdate` on macOS)
-- Env: `AUTH_JWT_SECRET`, `INGEST_HMAC_SECRET`, `DATABASE_URL`/`PG_DSN`, `TB_BASE_URL`
-- Auth helper: `source scripts/lib_auth.sh`
+## 📖 快速导航
 
-## Runbooks
-- `DEPLOYMENT.md` ? Dev/Test/Prod setup + one-click validation (pilot/shadowrun)
-- `SECURITY.md` ? Auth, RBAC, tenant isolation, audit logging
-- `OBSERVABILITY.md` ? Metrics, dashboards, alert rules
-- `PG_RETENTION.md` ? Telemetry partitioning, retention, maintenance
-- `PILOT_RUNBOOK.md` ? End-to-end pilot flow (provision ? ingest ? stats/settlement ? statements ? alarms ? commands)
-- `SHADOWRUN_RUNBOOK.md` ? Shadowrun reconciliation + alerts
-- `PROVISIONING_RUNBOOK.md` ? Station/device provisioning + TB adapter
-- `COMMAND_RUNBOOK.md` ? Command issue/query + TB RPC mapping
-- `STATEMENT_RUNBOOK.md` ? Statement generate/freeze/void/export
-- `STRATEGY_RUNBOOK.md` ? Strategy configuration + trigger
-- `M2_RUNBOOK.md` ? Day rollup + settlement validation
-- `M3_QUERY_API.md` ? Stats/settlements query + CSV export
-- `M3_MASTERDATA.md` ? Point mappings and semantics
-- `M3_TARIFF.md` ? Tariff inputs
-- `M4_EVENTING.md` ? Outbox/DLQ/processed events
-- `ALARM_RUNBOOK.md` ? Alarm rule + trigger/clear
-- `PERF.md` / `PERF_REPORT_TEMPLATE.md` ? Perf guidance and reporting
+### 入门指南
+- [README](../README.md) - 项目主页
+- [快速开始](QUICKSTART.md) - 5 分钟上手
+- [系统状态报告](SYSTEM_STATUS_REPORT.md) - 当前实现状态
 
-## Release acceptance
-- Script (Linux/macOS): `scripts/release_acceptance.sh`
-- Script (Windows/PowerShell): `scripts/release_acceptance.ps1`
-- Covers: migrations, provisioning, ingest + analytics, settlements/statements, alarms, commands, shadowrun
-- Output: summary report + logs under `var/`
+### 集成指南
+- [前后端集成](FRONTEND_INTEGRATION.md) - 前端与后端连接
+- [TB 集成指南](TB_INTEGRATION_GUIDE.md) - ThingsBoard 详细集成
+- [TB 数据转发](TB_DATA_FORWARDING.md) - 配置数据转发
+
+### 运维指南
+- [运维手册](M2_RUNBOOK.md) - 日常运维操作
+- [性能优化](PERF.md) - 性能调优指南
+- [故障排查](OUTBOX_TROUBLESHOOTING.md) - Outbox 故障排查
+
+### 开发指南
+- [项目结构整理](PROJECT_RESTRUCTURE_PLAN.md) - 目录结构规划
+
+---
+**最后更新**: 2026-01-28

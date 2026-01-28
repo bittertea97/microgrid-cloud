@@ -21,6 +21,12 @@ This document describes how to run the performance tests and how to interpret th
    - macOS: `brew install k6`
    - Linux: package manager or https://k6.io/docs/get-started/installation/
 
+## Optional (Dev): Postgres synchronous_commit
+For local performance troubleshooting you can disable synchronous commits:
+- Set `PG_SYNC_COMMIT=off` for `docker-compose.dev.yml` (see `services.postgres.command`).
+- **Risk**: Postgres may lose the most recent transactions on crash/restart.
+- **Scope**: dev only. Do not use in production or when data durability matters.
+
 ## Fake ThingsBoard RPC server (for command tests)
 Run in a separate terminal:
 

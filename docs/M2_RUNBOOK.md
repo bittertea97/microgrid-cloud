@@ -2,6 +2,11 @@
 
 This runbook validates the M2 closed loop locally with 1 station + 3 days of data, and verifies backfill consistency.
 
+> Dev-only perf toggle (Postgres):
+> - Default is **disabled**. Only enable if you see local DB stalls.
+> - Set `PG_SYNC_COMMIT=off` for `docker-compose.dev.yml` to reduce fsync latency.
+> - Risk: recent transactions may be lost on crash/restart.
+
 ## 1) Start Postgres
 
 ```bash
